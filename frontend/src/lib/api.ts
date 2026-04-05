@@ -1,17 +1,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
-export async function chat(message: string, sessionId: string) {
-  try {
-    const response = await fetch(`${API_BASE}/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, session_id: sessionId }),
-    });
-    if (!response.ok) throw new Error('Failed to send chat message');
-    return response;
-  } catch (error) {
-    throw error;
-  }
+export async function chat(message: string, sessionId: string, signal?: AbortSignal) {
+  const response = await fetch(`${API_BASE}/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, session_id: sessionId }),
+    signal,
+  });
+  return response;
 }
 
 export async function getSessions() {

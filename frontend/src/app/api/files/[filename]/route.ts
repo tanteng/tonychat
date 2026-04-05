@@ -10,6 +10,9 @@ export async function DELETE(
     `${API_BASE}/files/${encodeURIComponent(params.filename)}`,
     { method: 'DELETE' }
   );
+  if (!response.ok) {
+    return Response.json({ error: 'Failed to delete file' }, { status: response.status });
+  }
   const data = await response.json();
   return Response.json(data);
 }

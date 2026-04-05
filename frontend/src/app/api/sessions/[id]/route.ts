@@ -6,14 +6,12 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    const response = await fetch(`${API_BASE}/sessions/${params.id}`, {
-      method: 'DELETE',
-    });
-    if (!response.ok) throw new Error('Failed to delete session');
-    const data = await response.json();
-    return Response.json(data);
-  } catch (error) {
-    throw error;
+  const response = await fetch(`${API_BASE}/sessions/${params.id}`, {
+    method: 'DELETE',
+  });
+  if (!response.ok) {
+    return Response.json({ error: 'Failed to delete session' }, { status: response.status });
   }
+  const data = await response.json();
+  return Response.json(data);
 }

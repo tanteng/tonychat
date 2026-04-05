@@ -112,7 +112,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     const controller = new AbortController();
 
     try {
-      const response = await chat(content, state.currentSessionId || 'default');
+      const response = await chat(content, state.currentSessionId || 'default', controller.signal);
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
 
@@ -141,6 +141,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error('Chat error:', error);
     } finally {
+      controller.abort();
       dispatch({ type: 'END_STREAMING' });
     }
   }, [state.currentSessionId]);

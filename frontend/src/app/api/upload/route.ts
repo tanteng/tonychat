@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
     body: uploadFormData,
   });
 
+  if (!response.ok) {
+    return Response.json({ error: 'Upload failed' }, { status: response.status });
+  }
+
   const data = await response.json();
   return Response.json(data);
 }
