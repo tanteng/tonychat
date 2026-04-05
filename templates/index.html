@@ -572,21 +572,21 @@
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         const result = JSON.parse(xhr.responseText);
-                        alert('上传成功，开始处理: ' + JSON.stringify(result.files));
                         if (result.files && result.files.length > 0) {
                             loadFiles();
-                            fetchProcessProgress(result.files, loadFiles);
+                            fetchProcessProgress(result.files, () => {
+                                loadFiles();
+                                resetUploadUI();
+                            });
                         } else {
                             loadFiles();
                             resetUploadUI();
                         }
                     } catch (e) {
-                        alert('解析失败');
                         loadFiles();
                         resetUploadUI();
                     }
                 } else {
-                    alert('上传失败: ' + xhr.status);
                     resetUploadUI();
                 }
             };
@@ -695,24 +695,29 @@
             try {
                 const response = await fetch('/files');
                 const result = await response.json();
-                alert('loadFiles: ' + result.files.length + ' files');
 
-                fileList.innerHTML = '';
-                if (result.files.length === 0) {
-                    fileList.innerHTML = '<div style="color: #999; font-size: 13px;">暂无文件</div>';
-                } else {
-                    result.files.forEach(file => {
-                        const fileItem = document.createElement('div');
-                        fileItem.className = 'file-item';
-                        fileItem.innerHTML = `
-                            <span class="file-name" title="${file.filename}">${file.filename}</span>
-                            <button class="file-delete" onclick="deleteFile('${file.filename}')">&times;</button>
-                        `;
-                        fileList.appendChild(fileItem);
-                    });
-                }
+                const fileListEl = document.getElementById('fileList');
+                if (!fileListEl) return;
+
+                // Schedule DOM update after current stack clears
+                setTimeout(() => {
+                    fileListEl.innerHTML = '';
+                    if (result.files.length === 0) {
+                        fileListEl.innerHTML = '<div style="color: #999; font-size: 13px;">暂无文件</div>';
+                    } else {
+                        result.files.forEach(file => {
+                            const fileItem = document.createElement('div');
+                            fileItem.className = 'file-item';
+                            fileItem.innerHTML = `
+                                <span class="file-name" title="${file.filename}">${file.filename}</span>
+                                <button class="file-delete" onclick="deleteFile('${file.filename}')">&times;</button>
+                            `;
+                            fileListEl.appendChild(fileItem);
+                        });
+                    }
+                }, 0);
             } catch (error) {
-                alert('加载文件列表失败: ' + error.message);
+                console.error('加载文件列表失败:', error);
             }
         }
 
