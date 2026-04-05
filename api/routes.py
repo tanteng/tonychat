@@ -113,16 +113,18 @@ def process_files():
                     total = len(docs)
                     batch_size = 10
 
-                    if vector_store.store is None:
-                        for i in range(0, total, batch_size):
-                            batch = docs[i:i+batch_size]
+                    for i in range(0, total, batch_size):
+                        batch = docs[i:i+batch_size]
+                        if vector_store.store is None:
                             if i == 0:
                                 vector_store._store = FAISS.from_documents(batch, embeddings.embeddings)
                             else:
-                                vector_store._store.add_documents(batch)
+                                vector_store.add_documents(batch, embeddings.embeddings)
+                        else:
+                            vector_store.add_documents(batch, embeddings.embeddings)
 
-                            pct = min(90, 50 + int((i + len(batch)) / total * 40))
-                            yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'vectorizing', 'progress': pct})}\n\n"
+                        pct = min(90, 50 + int((i + len(batch)) / total * 40))
+                        yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'vectorizing', 'progress': pct})}\n\n"
 
                     vector_store.save()
 
