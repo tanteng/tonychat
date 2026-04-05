@@ -573,7 +573,10 @@
                     try {
                         const result = JSON.parse(xhr.responseText);
                         if (result.files && result.files.length > 0) {
-                            fetchProcessProgress(result.files);
+                            // 文件已上传，立即刷新列表显示新文件
+                            loadFiles();
+                            // 然后启动处理进度
+                            fetchProcessProgress(result.files, loadFiles);
                         } else {
                             loadFiles();
                             resetUploadUI();
@@ -617,7 +620,7 @@
             alert(message);
         }
 
-        function fetchProcessProgress(filenames) {
+        function fetchProcessProgress(filenames, onComplete) {
             fetch('/process', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -635,8 +638,8 @@
                 function processChunk(done, value) {
                     if (done || hasError) {
                         if (!hasError) {
-                            loadFiles();
-                            setTimeout(resetUploadUI, 1500);
+                            if (onComplete) onComplete();
+                            setTimeout(resetUploadUI, 1000);
                         }
                         return;
                     }
