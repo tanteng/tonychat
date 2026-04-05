@@ -1,63 +1,108 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
 
 export async function chat(message: string, sessionId: string) {
-  const response = await fetch(`${API_BASE}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, session_id: sessionId }),
-  });
-  return response;
+  try {
+    const response = await fetch(`${API_BASE}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, session_id: sessionId }),
+    });
+    if (!response.ok) throw new Error('Failed to send chat message');
+    return response;
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function getSessions() {
-  const response = await fetch(`${API_BASE}/sessions`);
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/sessions`);
+    if (!response.ok) throw new Error('Failed to fetch sessions');
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function createSession() {
-  const response = await fetch(`${API_BASE}/sessions`, {
-    method: 'POST',
-  });
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/sessions`, {
+      method: 'POST',
+    });
+    if (!response.ok) throw new Error('Failed to create session');
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function deleteSession(sessionId: string) {
-  const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-    method: 'DELETE',
-  });
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete session');
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function getSessionMessages(sessionId: string) {
-  const response = await fetch(`${API_BASE}/sessions/${sessionId}/messages`);
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/sessions/${sessionId}/messages`);
+    if (!response.ok) throw new Error('Failed to fetch session messages');
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function getFiles() {
-  const response = await fetch(`${API_BASE}/files`);
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/files`);
+    if (!response.ok) throw new Error('Failed to fetch files');
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function deleteFile(filename: string) {
-  const response = await fetch(`${API_BASE}/files/${encodeURIComponent(filename)}`, {
-    method: 'DELETE',
-  });
-  return response.json();
+  try {
+    const response = await fetch(`${API_BASE}/files/${encodeURIComponent(filename)}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete file');
+    return response.json();
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function uploadFiles(formData: FormData) {
-  const response = await fetch(`${API_BASE}/upload`, {
-    method: 'POST',
-    body: formData,
-  });
-  return response;
+  try {
+    const response = await fetch(`${API_BASE}/upload`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to upload files');
+    return response;
+  } catch (error) {
+    throw error;
+  }
 }
 
 export async function processFiles(filenames: string[]) {
-  const response = await fetch(`${API_BASE}/process`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files: filenames }),
-  });
-  return response;
+  try {
+    const response = await fetch(`${API_BASE}/process`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: filenames }),
+    });
+    if (!response.ok) throw new Error('Failed to process files');
+    return response;
+  } catch (error) {
+    throw error;
+  }
 }
