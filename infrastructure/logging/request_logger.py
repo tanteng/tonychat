@@ -15,6 +15,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import uuid
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
@@ -27,6 +28,7 @@ _request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Store for existing loggers
 _loggers: dict[str, logging.Logger] = {}
+_loggers_lock = threading.Lock()
 
 
 class JSONFormatter(logging.Formatter):
@@ -123,38 +125,39 @@ def setup_logger(name: str) -> logging.Logger:
     Returns:
         Configured logger instance
     """
-    if name in _loggers:
-        return _loggers[name]
+    with _loggers_lock:
+        if name in _loggers:
+            return _loggers[name]
 
-    logger = logging.getLogger(name)
-    logger.setLevel(logging.DEBUG)
-    logger.handlers.clear()
+        logger = logging.getLogger(name)
+        logger.setLevel(logging.DEBUG)
+        logger.handlers.clear()
 
-    # Ensure logs directory exists
-    log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, "tonychat.log")
+        # Ensure logs directory exists
+        log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        log_path = os.path.join(log_dir, "tonychat.log")
 
-    # File handler: 10MB per file, keep 5 backups
-    file_handler = RotatingFileHandler(
-        filename=log_path,
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(JSONFormatter())
+        # File handler: 10MB per file, keep 5 backups
+        file_handler = RotatingFileHandler(
+            filename=log_path,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(JSONFormatter())
 
-    # Console handler for development
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
-    console_handler.setFormatter(JSONFormatter())
+        # Console handler for development
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.DEBUG)
+        console_handler.setFormatter(JSONFormatter())
 
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
+        logger.addHandler(console_handler)
 
-    _loggers[name] = logger
-    return logger
+        _loggers[name] = logger
+        return logger
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -165,10 +168,7 @@ def get_logger(name: str) -> logging.Logger:
         name: Logger name
 
     Returns:
-        Logger instance (returns a new logger if none exists for this name)
-
-    Raises:
-        ValueError: If no logger with this name was ever set up
+        Logger instance (returns a fresh logger if none exists for this name)
     """
     if name not in _loggers:
         return logging.getLogger(name)
