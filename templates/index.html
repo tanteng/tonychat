@@ -572,26 +572,21 @@
                 if (xhr.status >= 200 && xhr.status < 300) {
                     try {
                         const result = JSON.parse(xhr.responseText);
+                        alert('上传成功，开始处理: ' + JSON.stringify(result.files));
                         if (result.files && result.files.length > 0) {
-                            // 文件已上传，立即刷新列表显示新文件
                             loadFiles();
-                            // 然后启动处理进度
                             fetchProcessProgress(result.files, loadFiles);
                         } else {
                             loadFiles();
                             resetUploadUI();
                         }
                     } catch (e) {
+                        alert('解析失败');
                         loadFiles();
                         resetUploadUI();
                     }
                 } else {
-                    try {
-                        const result = JSON.parse(xhr.responseText);
-                        showError('上传失败: ' + (result.error || '未知错误'));
-                    } catch {
-                        showError('上传失败: ' + xhr.status);
-                    }
+                    alert('上传失败: ' + xhr.status);
                     resetUploadUI();
                 }
             };
@@ -700,6 +695,7 @@
             try {
                 const response = await fetch('/files');
                 const result = await response.json();
+                alert('loadFiles: ' + result.files.length + ' files');
 
                 fileList.innerHTML = '';
                 if (result.files.length === 0) {
@@ -716,7 +712,7 @@
                     });
                 }
             } catch (error) {
-                console.error('加载文件列表失败:', error);
+                alert('加载文件列表失败: ' + error.message);
             }
         }
 
