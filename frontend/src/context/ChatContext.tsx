@@ -109,32 +109,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'ADD_MESSAGE', payload: { role: 'user', content } });
     dispatch({ type: 'START_STREAMING' });
 
-    const response = await chat(content, state.currentSessionId || 'default');
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
+    const controller = new AbortController();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+    try {
+      const response = await chat(content, state.currentSessionId || 'default');
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
 
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split('\n');
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-      for (const line of lines) {
-        if (line.startsWith('event: ')) continue;
-        if (line.startsWith('data: ')) {
-          const data = line.slice(6).trim();
-          try {
-            const parsed = JSON.parse(data);
-            if (parsed.delta) {
-              dispatch({ type: 'STREAM_UPDATE', payload: parsed.delta });
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) continue;
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.delta) {
+                dispatch({ type: 'STREAM_UPDATE', payload: parsed.delta });
+              }
+            } catch (e) {
+              console.error('Failed to parse SSE data:', e);
             }
-          } catch {}
+          }
         }
       }
+    } catch (error) {
+      console.error('Chat error:', error);
+    } finally {
+      dispatch({ type: 'END_STREAMING' });
     }
-
-    dispatch({ type: 'END_STREAMING' });
   }, [state.currentSessionId]);
 
   return (
