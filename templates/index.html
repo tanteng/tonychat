@@ -83,6 +83,21 @@
             color: #666;
         }
 
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e5e5e5;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #1a1a1a;
+            transition: width 0.3s ease;
+        }
+
         .file-list {
             flex: 1;
             overflow-y: auto;
@@ -443,8 +458,14 @@
             <div class="upload-section">
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-icon">📄</div>
-                    <div class="upload-text">点击或拖拽文件到此处上传</div>
+                    <div class="upload-text" id="uploadText">点击或拖拽文件到此处上传</div>
                     <div class="upload-text" style="font-size: 12px; margin-top: 4px;">支持 .txt, .md, .pdf, .docx</div>
+                    <div id="uploadProgress" style="display: none; margin-top: 10px;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                        </div>
+                        <div class="upload-text" id="progressText" style="font-size: 12px; margin-top: 4px;"></div>
+                    </div>
                 </div>
                 <input type="file" id="fileInput" multiple accept=".txt,.md,.pdf,.docx" style="display: none;">
             </div>
@@ -519,28 +540,156 @@
             handleFiles(e.target.files);
         });
 
-        async function handleFiles(files) {
+        function handleFiles(files) {
             if (files.length === 0) return;
+
+            const uploadText = document.getElementById('uploadText');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            uploadText.textContent = '准备上传...';
+            uploadProgress.style.display = 'block';
+            progressFill.style.width = '0%';
 
             const formData = new FormData();
             for (let i = 0; i < files.length; i++) {
                 formData.append('files', files[i]);
             }
 
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+            // 业界标准：XMLHttpRequest 才能获取真实上传进度
+            const xhr = new XMLHttpRequest();
 
-                const result = await response.json();
-                if (result.success) {
-                    loadFiles();
-                } else {
-                    alert('上传失败: ' + (result.error || '未知错误'));
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const pct = Math.round((e.loaded / e.total) * 100);
+                    progressFill.style.width = pct + '%';
+                    progressText.textContent = '上传中 ' + pct + '%';
                 }
-            } catch (error) {
-                alert('上传失败: ' + error.message);
+            };
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const result = JSON.parse(xhr.responseText);
+                        if (result.files && result.files.length > 0) {
+                            fetchProcessProgress(result.files);
+                        } else {
+                            loadFiles();
+                            resetUploadUI();
+                        }
+                    } catch (e) {
+                        loadFiles();
+                        resetUploadUI();
+                    }
+                } else {
+                    try {
+                        const result = JSON.parse(xhr.responseText);
+                        showError('上传失败: ' + (result.error || '未知错误'));
+                    } catch {
+                        showError('上传失败: ' + xhr.status);
+                    }
+                    resetUploadUI();
+                }
+            };
+
+            xhr.onerror = () => {
+                showError('上传失败: 网络错误');
+                resetUploadUI();
+            };
+
+            xhr.open('POST', '/upload');
+            xhr.send(formData);
+        }
+
+        function resetUploadUI() {
+            const uploadText = document.getElementById('uploadText');
+            const uploadProgress = document.getElementById('uploadProgress');
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            uploadText.textContent = '点击或拖拽文件到此处上传';
+            uploadProgress.style.display = 'none';
+            progressFill.style.width = '0%';
+            progressText.textContent = '';
+        }
+
+        function showError(message) {
+            alert(message);
+        }
+
+        function fetchProcessProgress(filenames) {
+            fetch('/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ files: filenames })
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error('处理失败: ' + response.status);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let hasError = false;
+
+                function processChunk(done, value) {
+                    if (done || hasError) {
+                        if (!hasError) {
+                            loadFiles();
+                            setTimeout(resetUploadUI, 1500);
+                        }
+                        return;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop();
+
+                    for (const line of lines) {
+                        if (line.startsWith('event: error')) {
+                            hasError = true;
+                        }
+                        if (line.startsWith('data: ')) {
+                            const data = line.slice(6).trim();
+                            if (!data) continue;
+                            try {
+                                const parsed = JSON.parse(data);
+                                if (parsed.error) {
+                                    hasError = true;
+                                    showError('处理失败: ' + parsed.error);
+                                } else {
+                                    updateProgress(parsed);
+                                }
+                            } catch (e) {}
+                        }
+                    }
+
+                    reader.read().then(({ done, value }) => processChunk(done, value));
+                }
+
+                reader.read().then(({ done, value }) => processChunk(done, value));
+            }).catch(error => {
+                showError('处理失败: ' + error.message);
+                resetUploadUI();
+            });
+        }
+
+        function updateProgress(parsed) {
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+
+            if (parsed.stage === 'parsing') {
+                progressFill.style.width = '30%';
+                progressText.textContent = parsed.filename + ' - 解析中...';
+            } else if (parsed.stage === 'splitting') {
+                progressFill.style.width = '50%';
+                progressText.textContent = parsed.filename + ' - 分片中...';
+            } else if (parsed.stage === 'vectorizing') {
+                progressFill.style.width = parsed.progress + '%';
+                progressText.textContent = parsed.filename + ' - 向量化中 ' + parsed.progress + '%';
+            } else if (parsed.stage === 'complete') {
+                progressFill.style.width = '100%';
+                progressText.textContent = parsed.filename + ' - 完成';
             }
         }
 

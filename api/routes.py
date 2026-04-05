@@ -48,13 +48,12 @@ def index():
 
 @api_bp.route('/upload', methods=['POST'])
 def upload_files():
-    """Upload files"""
+    """Upload files - returns immediately after save"""
     if 'files' not in request.files:
         return jsonify({'success': False, 'error': 'No files provided'}), 400
 
     files = request.files.getlist('files')
     uploaded = []
-    document_service = get_document_service()
 
     for file in files:
         if file.filename == '':
@@ -74,15 +73,77 @@ def upload_files():
                     counter += 1
 
             file.save(filepath)
-
-            # Load and index document
-            try:
-                document_service.load_and_index_document(filename)
-                uploaded.append(filename)
-            except Exception as e:
-                print(f"Error indexing {filename}: {e}")
+            uploaded.append(filename)
 
     return jsonify({'success': True, 'files': uploaded})
+
+
+@api_bp.route('/process', methods=['POST'])
+def process_files():
+    """Process uploaded files with SSE progress streaming (parsing + vectorizing)"""
+    data = request.get_json()
+    filenames = data.get('files', [])
+
+    if not filenames:
+        return jsonify({'success': False, 'error': 'No files provided'}), 400
+
+    def generate_sse():
+        for filename in filenames:
+            try:
+                # Load and split with progress
+                yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'parsing', 'progress': 30})}\n\n"
+
+                from infrastructure.document_loading.document_loader import DocumentLoader
+                loader = DocumentLoader()
+
+                filepath = os.path.join('uploads', filename)
+                docs = loader.load_file(filepath)
+
+                yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'splitting', 'progress': 50})}\n\n"
+
+                # Vectorize with progress
+                if docs:
+                    from infrastructure.vectorstore.faiss_store import get_vector_store
+                    from infrastructure.embeddings.openai_embeddings import get_embeddings_adapter
+                    from langchain_community.vectorstores import FAISS
+
+                    vector_store = get_vector_store()
+                    embeddings = get_embeddings_adapter()
+
+                    total = len(docs)
+                    batch_size = 10
+
+                    if vector_store.store is None:
+                        for i in range(0, total, batch_size):
+                            batch = docs[i:i+batch_size]
+                            if i == 0:
+                                vector_store._store = FAISS.from_documents(batch, embeddings.embeddings)
+                            else:
+                                vector_store._store.add_documents(batch)
+
+                            pct = min(90, 50 + int((i + len(batch)) / total * 40))
+                            yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'vectorizing', 'progress': pct})}\n\n"
+
+                    vector_store.save()
+
+                yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'complete', 'progress': 100})}\n\n"
+
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                yield f"event: error\ndata: {json.dumps({'filename': filename, 'error': str(e)})}\n\n"
+
+        yield f"event: done\ndata: {json.dumps({'success': True})}\n\n"
+
+    return Response(
+        generate_sse(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'
+        }
+    )
 
 
 @api_bp.route('/files', methods=['GET'])
