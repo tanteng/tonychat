@@ -1,9 +1,30 @@
+'use client';
+
+import { ChatProvider } from '@/context/ChatContext';
+import { Sidebar } from '@/components/sidebar/Sidebar';
+import { ChatArea } from '@/components/chat/ChatArea';
+import { useEffect } from 'react';
+import { useChat } from '@/context/ChatContext';
+
+function HomeContent() {
+  const { loadSessions } = useChat();
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  return (
+    <div className="flex h-screen">
+      <Sidebar />
+      <ChatArea />
+    </div>
+  );
+}
+
 export default function Home() {
   return (
-    <main className="flex h-screen">
-      <div className="flex-1 flex items-center justify-center">
-        <p>TonyChat 加载中...</p>
-      </div>
-    </main>
+    <ChatProvider>
+      <HomeContent />
+    </ChatProvider>
   );
 }
