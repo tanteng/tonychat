@@ -10,9 +10,12 @@ export async function DELETE(
     `${API_BASE}/files/${encodeURIComponent(params.filename)}`,
     { method: 'DELETE' }
   );
-  if (!response.ok) {
-    return Response.json({ error: 'Failed to delete file' }, { status: response.status });
-  }
   const data = await response.json();
-  return Response.json(data);
+  const headers: HeadersInit = {};
+  const requestId = response.headers.get('X-Request-ID');
+  if (requestId) headers['X-Request-ID'] = requestId;
+  if (!response.ok) {
+    return Response.json({ error: 'Failed to delete file' }, { status: response.status, headers });
+  }
+  return Response.json(data, { headers });
 }

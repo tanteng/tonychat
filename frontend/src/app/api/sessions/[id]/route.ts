@@ -9,9 +9,12 @@ export async function DELETE(
   const response = await fetch(`${API_BASE}/sessions/${params.id}`, {
     method: 'DELETE',
   });
-  if (!response.ok) {
-    return Response.json({ error: 'Failed to delete session' }, { status: response.status });
-  }
   const data = await response.json();
-  return Response.json(data);
+  const headers: HeadersInit = {};
+  const requestId = response.headers.get('X-Request-ID');
+  if (requestId) headers['X-Request-ID'] = requestId;
+  if (!response.ok) {
+    return Response.json({ error: 'Failed to delete session' }, { status: response.status, headers });
+  }
+  return Response.json(data, { headers });
 }

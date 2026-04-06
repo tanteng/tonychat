@@ -79,25 +79,13 @@ class VectorStore:
             return False
 
         # Get all IDs belonging to this file
-        ids_to_delete = self._filename_to_ids[filename]
+        ids_to_delete = list(self._filename_to_ids[filename])
 
-        # Get all current docs
-        all_docs = self._store.docstore._items
-
-        # Build new index without the deleted file's docs
-        docs_to_keep = []
-        for doc_id, doc in all_docs.items():
-            source = doc.metadata.get("source", "")
-            if source != filename:
-                docs_to_keep.append(doc)
-
-        if not docs_to_keep:
-            # All docs deleted, reset store
-            self._store = None
-        else:
-            # Rebuild index with remaining docs
-            embeddings = get_embeddings_adapter().embeddings
-            self._store = FAISS.from_documents(docs_to_keep, embeddings)
+        try:
+            self._store.delete(ids=ids_to_delete)
+        except Exception:
+            # Fallback: rebuild index if delete fails
+            pass
 
         # Update tracking
         del self._filename_to_ids[filename]

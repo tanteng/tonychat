@@ -10,11 +10,12 @@
 - 🔍 **向量检索** - FAISS 向量数据库，支持语义相似度检索
 - 📝 **会话历史** - 持久化存储对话记录，刷新页面不丢失
 - 🤖 **模型支持** - 支持 OpenAI、Claude 等主流 LLM，标题生成使用 Qwen2.5-7B
+- 📋 **Markdown 渲染** - 支持代码高亮、表格、GFM 语法
 
 ## 技术栈
 
 - **后端**: Flask + SQLAlchemy + SQLite
-- **前端**: 原生 HTML/CSS/JavaScript
+- **前端**: Next.js 14 (App Router) + TypeScript + TailwindCSS
 - **向量库**: FAISS
 - **LLM**: LangChain + SiliconFlow API
 
@@ -60,13 +61,25 @@ LLM_MODEL=deepseek-ai/DeepSeek-V3.2
 TITLE_MODEL=Qwen/Qwen2.5-7B-Instruct
 ```
 
-### 5. 启动服务
+### 5. 启动后端服务
 
 ```bash
 python app.py
 ```
 
-访问 http://localhost:5001
+后端运行在 http://localhost:5001
+
+### 6. 启动前端服务
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+前端运行在 http://localhost:3002
+
+访问 http://localhost:3002 开始使用
 
 ## 使用方式
 
@@ -91,10 +104,18 @@ tonychat/
 │   ├── vectorstore/
 │   │   └── faiss_store.py
 │   └── persistence/
-│       └── database.py        # 数据库
+│       └── database.py         # 数据库
+├── frontend/                   # Next.js 前端
+│   ├── src/
+│   │   ├── app/               # App Router 页面
+│   │   │   └── api/           # API 路由（代理）
+│   │   ├── components/         # React 组件
+│   │   ├── context/            # 状态管理
+│   │   └── lib/               # 工具函数
+│   └── package.json
 ├── templates/
-│   └── index.html             # 前端页面
-└── uploads/                   # 上传文件目录
+│   └── index.html              # Flask 模板（备用）
+└── uploads/                    # 上传文件目录
 ```
 
 ## API 接口

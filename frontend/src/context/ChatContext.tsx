@@ -17,6 +17,7 @@ type ChatAction =
   | { type: 'ADD_SESSION'; payload: Session }
   | { type: 'DELETE_SESSION'; payload: string }
   | { type: 'SELECT_SESSION'; payload: string }
+  | { type: 'UPDATE_SESSION'; payload: { id: string; title: string } }
   | { type: 'SET_MESSAGES'; payload: Message[] }
   | { type: 'ADD_MESSAGE'; payload: Message }
   | { type: 'START_STREAMING' }
@@ -45,6 +46,13 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
       };
     case 'SELECT_SESSION':
       return { ...state, currentSessionId: action.payload };
+    case 'UPDATE_SESSION':
+      return {
+        ...state,
+        sessions: state.sessions.map((s) =>
+          s.id === action.payload.id ? { ...s, title: action.payload.title } : s
+        ),
+      };
     case 'SET_MESSAGES':
       return { ...state, messages: action.payload };
     case 'ADD_MESSAGE':
@@ -75,6 +83,7 @@ interface ChatContextType {
   createNewSession: () => Promise<void>;
   removeSession: (id: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
+  updateSessionTitle: (id: string, title: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -105,11 +114,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'DELETE_SESSION', payload: id });
   }, []);
 
+  const updateSessionTitle = useCallback((id: string, title: string) => {
+    dispatch({ type: 'UPDATE_SESSION', payload: { id, title } });
+  }, []);
+
   const sendMessage = useCallback(async (content: string) => {
     dispatch({ type: 'ADD_MESSAGE', payload: { role: 'user', content } });
     dispatch({ type: 'START_STREAMING' });
 
     const controller = new AbortController();
+    let currentEvent = '';
+    let errorMessage = '';
 
     try {
       const response = await chat(content, state.currentSessionId || 'default', controller.signal);
@@ -124,13 +139,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const lines = chunk.split('\n');
 
         for (const line of lines) {
-          if (line.startsWith('event: ')) continue;
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim();
+            continue;
+          }
           if (line.startsWith('data: ')) {
             const data = line.slice(6).trim();
             try {
               const parsed = JSON.parse(data);
-              if (parsed.delta) {
+              if (currentEvent === 'text_message_content' && parsed.delta) {
                 dispatch({ type: 'STREAM_UPDATE', payload: parsed.delta });
+              } else if (currentEvent === 'text_message_end') {
+                if (parsed.error) {
+                  errorMessage = parsed.error;
+                }
               }
             } catch (e) {
               console.error('Failed to parse SSE data:', e);
@@ -140,15 +162,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error('Chat error:', error);
+      errorMessage = error instanceof Error ? error.message : '请求失败';
     } finally {
       controller.abort();
+      if (errorMessage) {
+        dispatch({ type: 'STREAM_UPDATE', payload: `\n\n[错误: ${errorMessage}]` });
+      }
       dispatch({ type: 'END_STREAMING' });
+      // Reload sessions to get updated title
+      loadSessions();
     }
-  }, [state.currentSessionId]);
+  }, [state.currentSessionId, loadSessions]);
 
   return (
     <ChatContext.Provider
-      value={{ state, loadSessions, selectSession, createNewSession, removeSession, sendMessage }}
+      value={{ state, loadSessions, selectSession, createNewSession, removeSession, sendMessage, updateSessionTitle }}
     >
       {children}
     </ChatContext.Provider>

@@ -7,9 +7,12 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const response = await fetch(`${API_BASE}/sessions/${params.id}/messages`);
-  if (!response.ok) {
-    return Response.json({ error: 'Failed to fetch messages' }, { status: response.status });
-  }
   const data = await response.json();
-  return Response.json(data);
+  const headers: HeadersInit = {};
+  const requestId = response.headers.get('X-Request-ID');
+  if (requestId) headers['X-Request-ID'] = requestId;
+  if (!response.ok) {
+    return Response.json({ error: 'Failed to fetch messages' }, { status: response.status, headers });
+  }
+  return Response.json(data, { headers });
 }

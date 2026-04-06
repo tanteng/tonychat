@@ -82,6 +82,8 @@ export function UploadArea() {
                 setTimeout(() => {
                   setProgress(0);
                   setStatus('');
+                  // Notify FileList to refresh
+                  window.dispatchEvent(new CustomEvent('files-updated'));
                 }, 1500);
               });
             }

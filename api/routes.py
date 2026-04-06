@@ -218,11 +218,12 @@ def chat():
         return jsonify({'error': 'No message provided'}), 400
 
     chat_service = get_chat_service()
+    message_id = str(uuid.uuid4())
+    logger.info("Chat request received", extra={"message_id": message_id, "session_id": session_id, "model": model, "message_length": len(message)})
 
     def generate():
-        message_id = str(uuid.uuid4())
-        logger.info("Chat started", extra={"message_id": message_id, "session_id": session_id, "model": model})
         try:
+            logger.info("Chat streaming started", extra={"message_id": message_id, "session_id": session_id})
             # Send TextMessageStart event
             yield f"event: text_message_start\ndata: {json.dumps({'messageId': message_id, 'role': 'assistant'})}\n\n"
 
@@ -235,10 +236,15 @@ def chat():
 
             # Send TextMessageEnd event
             yield f"event: text_message_end\ndata: {json.dumps({'messageId': message_id})}\n\n"
+            logger.info("Chat streaming completed", extra={"message_id": message_id, "response_length": len(full_content)})
 
+        except GeneratorExit:
+            # Client disconnected
+            logger.warning("Chat stream closed by client", extra={"message_id": message_id})
+            raise
         except Exception as e:
             import traceback
-            traceback.print_exc()
+            logger.error("Chat stream error", extra={"message_id": message_id, "error": str(e), "traceback": traceback.format_exc()})
             # Send error event
             yield f"event: text_message_end\ndata: {json.dumps({'messageId': message_id, 'error': str(e)})}\n\n"
 

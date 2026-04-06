@@ -1,8 +1,10 @@
 import os
 import uuid
+import time
+import sqlite3
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
-from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text
+from sqlalchemy import create_engine, Column, String, Integer, DateTime, Text, event
 from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.pool import StaticPool
 
@@ -35,6 +37,21 @@ class ConversationMessage(Base):
     created_at = Column(DateTime, default=now_beijing)
 
 
+def _retry_on_lock(func):
+    """Decorator to retry database operations on SQLite lock errors"""
+    def wrapper(*args, **kwargs):
+        max_retries = 3
+        for i in range(max_retries):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if 'database is locked' in str(e) and i < max_retries - 1:
+                    time.sleep(0.1 * (i + 1))  # Exponential backoff
+                    continue
+                raise
+    return wrapper
+
+
 class Database:
     _instance = None
 
@@ -44,9 +61,16 @@ class Database:
 
         self.engine = create_engine(
             f'sqlite:///{db_path}',
-            connect_args={'check_same_thread': False},
-            poolclass=StaticPool
+            connect_args={'check_same_thread': False, 'timeout': 30}
         )
+
+        # Set busy timeout for better concurrency
+        @event.listens_for(self.engine, "connect")
+        def set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA busy_timeout=30000")
+            cursor.close()
+
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
 
@@ -56,6 +80,7 @@ class Database:
             cls._instance = cls()
         return cls._instance
 
+    @_retry_on_lock
     def add_message(self, session_id: str, role: str, content: str) -> ConversationMessage:
         """Add a message to the conversation history"""
         session = self.Session()
@@ -84,6 +109,7 @@ class Database:
         finally:
             session.close()
 
+    @_retry_on_lock
     def clear_conversation_history(self, session_id: str) -> None:
         """Clear all messages for a session"""
         session = self.Session()
@@ -95,6 +121,7 @@ class Database:
         finally:
             session.close()
 
+    @_retry_on_lock
     def delete_messages_after(self, session_id: str, after_id: int) -> None:
         """Delete all messages after a specific message ID"""
         session = self.Session()
@@ -108,6 +135,7 @@ class Database:
             session.close()
 
     # Session methods
+    @_retry_on_lock
     def create_session(self) -> Session:
         """Create a new session with a generated UUID"""
         session = self.Session()
@@ -139,6 +167,7 @@ class Database:
         finally:
             session.close()
 
+    @_retry_on_lock
     def update_session_title(self, session_id: str, title: str) -> None:
         """Update the title of a session"""
         session = self.Session()
@@ -151,6 +180,7 @@ class Database:
         finally:
             session.close()
 
+    @_retry_on_lock
     def delete_session(self, session_id: str) -> None:
         """Delete a session and all its associated messages"""
         session = self.Session()
@@ -167,6 +197,7 @@ class Database:
         finally:
             session.close()
 
+    @_retry_on_lock
     def touch_session(self, session_id: str) -> None:
         """Update the updated_at timestamp of a session"""
         session = self.Session()

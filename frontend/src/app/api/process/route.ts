@@ -12,11 +12,13 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({ files: filenames }),
   });
 
-  return new Response(response.body, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive',
-    },
-  });
+  const requestId = response.headers.get('X-Request-ID');
+  const headers: Record<string, string> = {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  };
+  if (requestId) headers['X-Request-ID'] = requestId;
+
+  return new Response(response.body, { headers });
 }

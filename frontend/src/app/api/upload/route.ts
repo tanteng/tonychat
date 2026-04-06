@@ -21,5 +21,8 @@ export async function POST(req: NextRequest) {
   }
 
   const data = await response.json();
-  return Response.json(data);
+  const headers: HeadersInit = {};
+  const requestId = response.headers.get('X-Request-ID');
+  if (requestId) headers['X-Request-ID'] = requestId;
+  return Response.json(data, { headers });
 }

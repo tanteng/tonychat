@@ -1,3 +1,5 @@
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Message } from '@/types';
 
 interface MessageItemProps {
@@ -14,7 +16,9 @@ export function MessageItem({ message }: MessageItemProps) {
           isUser ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-900'
         }`}
       >
-        <p className="whitespace-pre-wrap">{message.content}</p>
+        <div className="prose prose-sm max-w-none">
+          <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+        </div>
         {message.created_at && (
           <p className={`text-xs mt-1 ${isUser ? 'text-gray-400' : 'text-gray-500'}`}>
             {new Date(message.created_at).toLocaleString('zh-CN', {

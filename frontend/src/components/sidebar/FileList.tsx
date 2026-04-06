@@ -14,6 +14,10 @@ export function FileList() {
 
   useEffect(() => {
     loadFiles();
+    // Listen for upload completion events
+    const handleFilesUpdated = () => loadFiles();
+    window.addEventListener('files-updated', handleFilesUpdated);
+    return () => window.removeEventListener('files-updated', handleFilesUpdated);
   }, []);
 
   const handleDelete = async (filename: string) => {

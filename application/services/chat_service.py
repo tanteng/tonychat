@@ -150,10 +150,13 @@ class ChatService:
 
         return response
 
-    def chat_stream(self, question: str, session_id: str = "default", top_k: int = 5):
-        """Process a chat question with real streaming"""
-        import asyncio
+    def chat_stream(self, question: str, session_id: str = "default", top_k: int = 5, timeout: float = 60.0):
+        """Process a chat question with real streaming using httpx directly"""
+        import httpx
+        import os
+        import json
         import threading
+        import queue
 
         # Get list of valid (existing) files
         doc_service = get_document_service()
@@ -170,37 +173,75 @@ class ChatService:
         # Step 3: Get conversation history
         history_str = self._get_history_string(session_id)
 
-        # Step 4: Create chain
-        chain = self.llm_adapter.create_chat_chain_with_history(RAG_PROMPT_TEMPLATE)
+        # Step 4: Prepare messages for API call
+        messages = [
+            {"role": "system", "content": RAG_PROMPT_TEMPLATE},
+            {"role": "user", "content": f"上下文：{context}\n\n历史：{history_str}\n\n问题：{question}"}
+        ]
 
-        # Step 5: Use async stream to get real streaming chunks
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Step 5: Stream using httpx directly
+        api_key = os.environ.get('OPENAI_API_KEY', '')
+        base_url = os.environ.get('OPENAI_API_BASE', 'https://api.siliconflow.cn/v1')
+        model = os.environ.get('LLM_MODEL', 'deepseek-ai/DeepSeek-V3.2')
+
+        chunk_queue = queue.Queue()
+        error_holder = [None]
+
+        def stream_response():
+            try:
+                with httpx.stream(
+                    "POST",
+                    f"{base_url}/chat/completions",
+                    json={
+                        "model": model,
+                        "messages": messages,
+                        "stream": True,
+                        "temperature": self.llm_adapter.temperature,
+                    },
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    timeout=httpx.Timeout(timeout, read=timeout),
+                ) as response:
+                    for line in response.iter_lines():
+                        if not line or not line.startswith("data: "):
+                            continue
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk_data = json.loads(data)
+                            delta = chunk_data.get("choices", [{}])[0].get("delta", {}).get("content", "")
+                            if delta:
+                                chunk_queue.put(delta)
+                        except json.JSONDecodeError:
+                            continue
+            except Exception as e:
+                error_holder[0] = e
+            finally:
+                chunk_queue.put(None)  # Signal completion
+
+        thread = threading.Thread(target=stream_response)
+        thread.start()
+
+        # Yield chunks as they come
         full_response = ""
-
-        try:
-            # Run async stream in sync context
-            async def run_stream():
-                async for chunk in self.llm_adapter.stream(chain, {
-                    "context": context,
-                    "history": history_str,
-                    "question": question
-                }):
-                    yield chunk
-
-            # Get the async generator and run it
-            gen = run_stream()
-            while True:
-                try:
-                    chunk = loop.run_until_complete(gen.__anext__())
-                    full_response += chunk
-                    yield chunk
-                except StopAsyncIteration:
+        while True:
+            try:
+                chunk = chunk_queue.get(timeout=timeout)
+                if chunk is None:  # Stream ended
                     break
-        finally:
-            loop.close()
+                full_response += chunk
+                yield chunk
+            except queue.Empty:
+                raise TimeoutError(f"LLM streaming timed out after {timeout} seconds")
 
-        # Step 6: Save to history
+        thread.join(timeout=5)
+        if error_holder[0]:
+            raise error_holder[0]
+
+        # Step 6: Save to history (after streaming completes)
         self._add_to_history(session_id, "user", question)
         self._add_to_history(session_id, "assistant", full_response)
 

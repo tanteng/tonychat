@@ -1,7 +1,7 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001';
+const API_BASE = '/api';
 
 export async function chat(message: string, sessionId: string, signal?: AbortSignal) {
-  const response = await fetch(`${API_BASE}/chat`, {
+  const response = await fetch(`/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ message, session_id: sessionId }),
@@ -12,7 +12,7 @@ export async function chat(message: string, sessionId: string, signal?: AbortSig
 
 export async function getSessions() {
   try {
-    const response = await fetch(`${API_BASE}/sessions`);
+    const response = await fetch(`/api/sessions`);
     if (!response.ok) throw new Error('Failed to fetch sessions');
     return response.json();
   } catch (error) {
@@ -22,7 +22,7 @@ export async function getSessions() {
 
 export async function createSession() {
   try {
-    const response = await fetch(`${API_BASE}/sessions`, {
+    const response = await fetch(`/api/sessions`, {
       method: 'POST',
     });
     if (!response.ok) throw new Error('Failed to create session');
@@ -34,7 +34,7 @@ export async function createSession() {
 
 export async function deleteSession(sessionId: string) {
   try {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+    const response = await fetch(`/api/sessions/${sessionId}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete session');
@@ -46,7 +46,7 @@ export async function deleteSession(sessionId: string) {
 
 export async function getSessionMessages(sessionId: string) {
   try {
-    const response = await fetch(`${API_BASE}/sessions/${sessionId}/messages`);
+    const response = await fetch(`/api/sessions/${sessionId}/messages`);
     if (!response.ok) throw new Error('Failed to fetch session messages');
     return response.json();
   } catch (error) {
@@ -56,7 +56,7 @@ export async function getSessionMessages(sessionId: string) {
 
 export async function getFiles() {
   try {
-    const response = await fetch(`${API_BASE}/files`);
+    const response = await fetch(`/api/files`);
     if (!response.ok) throw new Error('Failed to fetch files');
     return response.json();
   } catch (error) {
@@ -66,7 +66,7 @@ export async function getFiles() {
 
 export async function deleteFile(filename: string) {
   try {
-    const response = await fetch(`${API_BASE}/files/${encodeURIComponent(filename)}`, {
+    const response = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
       method: 'DELETE',
     });
     if (!response.ok) throw new Error('Failed to delete file');
@@ -78,7 +78,7 @@ export async function deleteFile(filename: string) {
 
 export async function uploadFiles(formData: FormData) {
   try {
-    const response = await fetch(`${API_BASE}/upload`, {
+    const response = await fetch(`/api/upload`, {
       method: 'POST',
       body: formData,
     });
@@ -91,7 +91,7 @@ export async function uploadFiles(formData: FormData) {
 
 export async function processFiles(filenames: string[]) {
   try {
-    const response = await fetch(`${API_BASE}/process`, {
+    const response = await fetch(`/api/process`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files: filenames }),
