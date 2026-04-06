@@ -37,8 +37,8 @@ def start_timer():
 
 @app.before_request
 def before_request_handler():
-    """Generate and set request_id for /api requests."""
-    if request.path.startswith("/api"):
+    """Generate and set request_id for API requests."""
+    if "api" in request.blueprints:
         request_id = generate_request_id()
         g.request_id = request_id
         set_request_id(request_id)
@@ -47,7 +47,7 @@ def before_request_handler():
 @app.after_request
 def after_request_handler(response):
     """Add X-Request-ID header and log request completion."""
-    if request.path.startswith("/api"):
+    if "api" in request.blueprints:
         request_id = get_request_id()
         if request_id:
             response.headers["X-Request-ID"] = request_id
