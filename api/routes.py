@@ -3,6 +3,9 @@ import json
 from flask import Blueprint, request, jsonify, Response, render_template
 from werkzeug.utils import secure_filename
 
+from infrastructure.logging.request_logger import get_logger
+logger = get_logger('tonychat')
+
 from application.services.document_service import get_document_service
 from application.services.chat_service import get_chat_service
 from infrastructure.persistence.database import get_database
@@ -55,6 +58,8 @@ def upload_files():
     files = request.files.getlist('files')
     uploaded = []
 
+    logger.info("File upload started", extra={"file_count": len(files), "filenames": [f.filename for f in files]})
+
     for file in files:
         if file.filename == '':
             continue
@@ -75,6 +80,7 @@ def upload_files():
             file.save(filepath)
             uploaded.append(filename)
 
+    logger.info("File upload completed", extra={"uploaded_files": uploaded})
     return jsonify({'success': True, 'files': uploaded})
 
 
@@ -90,6 +96,8 @@ def process_files():
     def generate_sse():
         for filename in filenames:
             try:
+                logger.info("File processing started", extra={"file_name": filename, "stage": "parsing"})
+
                 # Load and split with progress
                 yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'parsing', 'progress': 30})}\n\n"
 
@@ -130,9 +138,12 @@ def process_files():
 
                 yield f"event: progress\ndata: {json.dumps({'filename': filename, 'stage': 'complete', 'progress': 100})}\n\n"
 
+                logger.info("File processing completed", extra={"file_name": filename, "stage": "complete"})
+
             except Exception as e:
                 import traceback
                 traceback.print_exc()
+                logger.error("File processing error", extra={"file_name": filename, "error": str(e)})
                 yield f"event: error\ndata: {json.dumps({'filename': filename, 'error': str(e)})}\n\n"
 
         yield f"event: done\ndata: {json.dumps({'success': True})}\n\n"
@@ -174,11 +185,22 @@ def delete_file(filename):
     filename = sanitize_filename(filename)
     document_service = get_document_service()
 
+    logger.info("Delete file requested", extra={"file_name": filename})
     try:
         document_service.delete_document(filename)
+        logger.info("File deleted", extra={"file_name": filename})
         return jsonify({'success': True})
     except Exception as e:
+        logger.error("File deletion failed", extra={"file_name": filename, "error": str(e)})
         return jsonify({'success': False, 'error': str(e)}), 404
+
+
+@api_bp.route('/files/<filename>/exists', methods=['GET'])
+def file_exists(filename):
+    """Check if a file exists on disk"""
+    filename = sanitize_filename(filename)
+    filepath = os.path.join('uploads', filename)
+    return jsonify({'exists': os.path.exists(filepath)})
 
 
 import uuid
@@ -199,6 +221,7 @@ def chat():
 
     def generate():
         message_id = str(uuid.uuid4())
+        logger.info("Chat started", extra={"message_id": message_id, "session_id": session_id, "model": model})
         try:
             # Send TextMessageStart event
             yield f"event: text_message_start\ndata: {json.dumps({'messageId': message_id, 'role': 'assistant'})}\n\n"
